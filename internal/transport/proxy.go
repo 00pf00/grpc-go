@@ -88,16 +88,26 @@ func doHTTPConnectHandshake(ctx context.Context, conn net.Conn, backendAddr stri
 		req.Header.Add(proxyAuthHeaderKey, "Basic "+basicAuth(u, p))
 	}
 
+	fmt.Printf("req = %v\n", req)
 	if err := sendHTTPRequest(ctx, req, conn); err != nil {
+		fmt.Printf("error = %v", err)
 		return nil, fmt.Errorf("failed to write the HTTP request: %v", err)
 	}
 
 	r := bufio.NewReader(conn)
 	resp, err := http.ReadResponse(r, req)
+	fmt.Printf("resp = %v\n", resp)
 	if err != nil {
+		fmt.Printf("error = %v\n", err)
 		return nil, fmt.Errorf("reading server HTTP response: %v", err)
 	}
 	defer resp.Body.Close()
+	fmt.Printf("StatusCode = %v\n", resp.StatusCode)
+	dump, err := httputil.DumpResponse(resp, true)
+	if err != nil {
+		fmt.Printf("dump error = %v\n", err)
+	}
+	fmt.Printf(" dump = %v\n", string(dump))
 	if resp.StatusCode != http.StatusOK {
 		dump, err := httputil.DumpResponse(resp, true)
 		if err != nil {
@@ -118,17 +128,25 @@ func proxyDial(ctx context.Context, addr string, grpcUA string) (conn net.Conn, 
 	if err != nil {
 		return nil, err
 	}
+
+	fmt.Printf("proxyURL = %v\n", proxyURL)
 	if proxyURL != nil {
 		newAddr = proxyURL.Host
 	}
 
+	fmt.Printf("newAddr = %s\n", newAddr)
 	conn, err = (&net.Dialer{}).DialContext(ctx, "tcp", newAddr)
 	if err != nil {
+		fmt.Printf("error = %v\n", err)
+		fmt.Printf("error = %s\n", err.Error())
 		return
 	}
 	if proxyURL != nil {
 		// proxy is disabled if proxyURL is nil.
 		conn, err = doHTTPConnectHandshake(ctx, conn, addr, proxyURL, grpcUA)
+		if err != nil {
+			fmt.Printf("handshake error= %v\n", err)
+		}
 	}
 	return
 }
